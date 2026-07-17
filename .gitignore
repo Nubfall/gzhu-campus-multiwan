@@ -1,0 +1,8 @@
+/config/eportal
+*.bak
+*.tar.gz
+*.log
+.codegraph/
+.agents/
+.specify/
+AGENTS.md
