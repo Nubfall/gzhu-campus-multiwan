@@ -16,7 +16,7 @@ for file in "${shell_files[@]}"; do
 	bash -n "$file"
 done
 
-node --check "$package/htdocs/luci-static/resources/view/gzhu-eportal/settings-013a.js"
+node --check "$package/htdocs/luci-static/resources/view/gzhu-eportal/settings-014a.js"
 node -e 'const fs=require("fs"); process.argv.slice(1).forEach(p=>JSON.parse(fs.readFileSync(p,"utf8")))' \
 	"$package/root/usr/share/luci/menu.d/luci-app-gzhu-eportal.json" \
 	"$package/root/usr/share/rpcd/acl.d/luci-app-gzhu-eportal.json"
@@ -24,10 +24,10 @@ node -e 'const fs=require("fs"); process.argv.slice(1).forEach(p=>JSON.parse(fs.
 grep -q "LUCI_PKGARCH:=all" "$package/Makefile"
 grep -q "/etc/config/eportal" "$package/Makefile"
 grep -q "option check_url" "$package/root/etc/config/eportal"
-grep -q '"path": "gzhu-eportal/settings-013a"' "$package/root/usr/share/luci/menu.d/luci-app-gzhu-eportal.json"
-grep -q "widgets.DeviceSelect" "$package/htdocs/luci-static/resources/view/gzhu-eportal/settings-013a.js"
-grep -q "'disabled': readonly || null" "$package/htdocs/luci-static/resources/view/gzhu-eportal/settings-013a.js"
-test -f "$repo/dist/luci-app-gzhu-eportal_0.1.3_all.ipk"
+grep -q '"path": "gzhu-eportal/settings-014a"' "$package/root/usr/share/luci/menu.d/luci-app-gzhu-eportal.json"
+grep -q "widgets.DeviceSelect" "$package/htdocs/luci-static/resources/view/gzhu-eportal/settings-014a.js"
+grep -q "'disabled': readonly || null" "$package/htdocs/luci-static/resources/view/gzhu-eportal/settings-014a.js"
+test -f "$repo/dist/luci-app-gzhu-eportal_0.1.4_all.ipk"
 
 if command -v lua >/dev/null 2>&1; then
 	"$package/root/usr/bin/eportal-login" --self-test
