@@ -1,0 +1,20 @@
+{
+	"luci-app-gzhu-eportal": {
+		"description": "Grant LuCI access for Guangzhou University EPortal",
+		"read": {
+			"file": {
+				"/usr/bin/eportal-status": [ "exec" ],
+				"/sbin/logread -e eportal-login": [ "exec" ]
+			},
+			"uci": [ "eportal", "network" ]
+		},
+		"write": {
+			"file": {
+				"/usr/bin/eportal-login *": [ "exec" ],
+				"/usr/bin/eportal-watchdog --once": [ "exec" ],
+				"/etc/init.d/gzhu-eportal restart": [ "exec" ]
+			},
+			"uci": [ "eportal" ]
+		}
+	}
+}

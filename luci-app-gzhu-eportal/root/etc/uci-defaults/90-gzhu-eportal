@@ -1,0 +1,10 @@
+#!/bin/sh
+
+chmod 600 /etc/config/eportal
+if [ -f /etc/crontabs/root ]; then
+	sed -i '\|/usr/bin/eportal-login|d' /etc/crontabs/root
+	/etc/init.d/cron restart 2>/dev/null || true
+fi
+/etc/init.d/gzhu-eportal enable
+
+exit 0

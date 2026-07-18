@@ -1,0 +1,33 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+run_account() {
+	/usr/bin/eportal-login "$1" || failed=1
+}
+
+run_all() {
+	failed=0
+	config_load eportal
+	config_foreach run_account account
+	return "$failed"
+}
+
+interval() {
+	value=$(uci -q get eportal.globals.check_interval)
+	case "$value" in
+		''|*[!0-9]*) value=120 ;;
+	esac
+	[ "$value" -ge 30 ] 2>/dev/null || value=30
+	printf '%s' "$value"
+}
+
+if [ "${1:-}" = '--once' ]; then
+	run_all
+	exit $?
+fi
+
+while :; do
+	run_all
+	sleep "$(interval)"
+done

@@ -1,0 +1,13 @@
+{
+	"admin/network/gzhu-eportal": {
+		"title": "广州大学校园网认证",
+		"order": 75,
+		"action": {
+			"type": "view",
+			"path": "gzhu-eportal/settings"
+		},
+		"depends": {
+			"acl": [ "luci-app-gzhu-eportal" ]
+		}
+	}
+}

@@ -19,8 +19,9 @@
 
 ## 仓库内容
 
-- [`scripts/eportal-login`](scripts/eportal-login)：按指定 WAN 检测联网状态、发现 Portal 并提交认证。
-- [`config/eportal.example`](config/eportal.example)：双 WAN 账号配置模板。
+- [`luci-app-gzhu-eportal/`](luci-app-gzhu-eportal/)：可安装的 LuCI 插件，包含认证脚本、后台服务和图形配置页。
+- [`luci-app-gzhu-eportal/root/usr/bin/eportal-login`](luci-app-gzhu-eportal/root/usr/bin/eportal-login)：按指定 WAN 检测联网状态、发现 Portal 并提交认证。
+- [`luci-app-gzhu-eportal/root/etc/config/eportal`](luci-app-gzhu-eportal/root/etc/config/eportal)：双 WAN 账号配置模板。
 - [`config/mwan3.example`](config/mwan3.example)：双线等权负载均衡及故障切换模板。
 
 ## 工作原理
@@ -210,7 +211,7 @@ opkg install curl lua
 电脑执行，上传脚本并运行自检：
 
 ```sh
-scp -O scripts/eportal-login root@192.168.1.1:/usr/bin/eportal-login
+scp -O luci-app-gzhu-eportal/root/usr/bin/eportal-login root@192.168.1.1:/usr/bin/eportal-login
 ssh root@192.168.1.1 'chmod 700 /usr/bin/eportal-login; /usr/bin/eportal-login --self-test'
 ```
 
@@ -223,11 +224,11 @@ self-test: ok
 电脑执行，复制配置模板：
 
 ```sh
-scp -O config/eportal.example root@192.168.1.1:/etc/config/eportal
+scp -O luci-app-gzhu-eportal/root/etc/config/eportal root@192.168.1.1:/etc/config/eportal
 ssh root@192.168.1.1 'chmod 600 /etc/config/eportal'
 ```
 
-路由器执行 `vi /etc/config/eportal`，替换以下占位符：
+路由器执行 `vi /etc/config/eportal`，替换以下占位符，并把需要认证的账号节中 `enabled` 改为 `1`：
 
 ```text
 YOUR_ACCOUNT_A
@@ -417,6 +418,48 @@ reboot
 ```
 
 也可以在 LuCI 的“系统 -> 备份/升级”中上传备份恢复。若恢复前重刷过固件，还需要按第 3、4 节重新安装依赖和部署脚本。
+
+## 10. 安装 LuCI 插件
+
+插件适用于 ImmortalWrt/OpenWrt 23.05 系列。仓库中的 [`luci-app-gzhu-eportal_0.1.0_all.ipk`](dist/luci-app-gzhu-eportal_0.1.0_all.ipk) 已使用 ImmortalWrt 23.05.4 `ramips/mt7621` SDK 完成真实构建，包架构为 `all`。
+
+电脑执行上传，随后在路由器安装：
+
+```sh
+scp -O dist/luci-app-gzhu-eportal_0.1.0_all.ipk root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 'opkg update; opkg install /tmp/luci-app-gzhu-eportal_0.1.0_all.ipk; /etc/init.d/gzhu-eportal enable; /etc/init.d/gzhu-eportal start'
+```
+
+安装后打开“网络 -> 广州大学校园网认证”。账号、密码、验证网址和端口绑定都可以在页面中修改；“立即认证全部线路”和“查看日志”用于现场排查。mwan3 的成员、策略、权重和跟踪参数仍在“网络 -> MultiWAN 管理器”中调整。
+
+插件页面可调整：每条线路的启用状态、名称、实际出站设备、账号、密码、Portal 服务字段和路由表；全局的验证网址、成功状态码、检查周期、探测/登录超时、登录重试次数、登录接口路径和出站规则优先级。动态的 `wlanuserip`、`mac`、`nasip`、`queryString` 仍由脚本自动发现，不应手工固定。
+
+`/etc/config/eportal` 已声明为 opkg 配置文件，升级插件时会保留现有账号设置。首次安装会将其权限收紧为 `600`。
+安装脚本会删除旧版手动配置留下的 `/usr/bin/eportal-login` cron 任务，改由 procd 服务统一调度。
+
+### 自行构建
+
+需要在 Linux、WSL 或 ImmortalWrt SDK 中构建，路由器本身不建议承担编译工作。
+
+在 SDK 根目录执行：
+
+```sh
+cp -a /path/to/gzhu-campus-multiwan/luci-app-gzhu-eportal package/
+./scripts/feeds update base packages luci routing
+./scripts/feeds install curl lua mwan3 luci-base
+make defconfig
+make package/luci-app-gzhu-eportal/compile V=s
+find bin/packages -name 'luci-app-gzhu-eportal_*.ipk'
+```
+
+在电脑上把生成的 IPK 上传到路由器，再执行安装：
+
+```sh
+scp -O bin/packages/*/*/luci-app-gzhu-eportal_*.ipk root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 'opkg update; opkg install /tmp/luci-app-gzhu-eportal_*.ipk; /etc/init.d/gzhu-eportal enable; /etc/init.d/gzhu-eportal start'
+```
+
+如果只想使用命令行，仍可按第 4、5 节直接上传插件目录中的脚本和配置模板。
 
 ## License
 

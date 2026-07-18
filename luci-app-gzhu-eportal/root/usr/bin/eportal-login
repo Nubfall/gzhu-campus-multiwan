@@ -1,0 +1,170 @@
+#!/bin/sh
+
+urlencode_once() {
+	EPORTAL_ENCODE="$1" lua -e 'local s=os.getenv("EPORTAL_ENCODE") or ""; io.write((s:gsub("([^%w%-_%.~])", function(c) return string.format("%%%02X", string.byte(c)) end)))'
+}
+
+urlencode_twice() {
+	urlencode_once "$(urlencode_once "$1")"
+}
+
+extract_portal_url() {
+	sed -n "s/.*href='\([^']*\)'.*/\1/p"
+}
+
+portal_query() {
+	value=$1
+	printf '%s' "${value#*\?}"
+}
+
+uint_or_default() {
+	value=$1
+	default=$2
+	case "$value" in
+		''|*[!0-9]*) printf '%s' "$default" ;;
+		*) printf '%s' "$value" ;;
+	esac
+}
+
+self_test() {
+	[ "$(urlencode_once 'a b&c')" = 'a%20b%26c' ] || return 1
+	[ "$(urlencode_twice 'a=b&c')" = 'a%253Db%2526c' ] || return 1
+	sample="<script>top.self.location.href='http://host/eportal/index.jsp?a=1&b=2'</script>"
+	[ "$(printf '%s' "$sample" | extract_portal_url)" = 'http://host/eportal/index.jsp?a=1&b=2' ] || return 1
+	[ "$(portal_query 'http://host/eportal/index.jsp?a=1&b=2')" = 'a=1&b=2' ] || return 1
+	[ "$(uint_or_default '12' '3')" = '12' ] || return 1
+	[ "$(uint_or_default 'bad' '3')" = '3' ] || return 1
+	echo 'self-test: ok'
+}
+
+[ "${1:-}" = '--self-test' ] && {
+	self_test
+	exit $?
+}
+
+section=${1:-}
+case "$section" in
+	''|*[!A-Za-z0-9_]*) exit 64 ;;
+esac
+
+status_file="/tmp/eportal-login-$section.status"
+write_status() {
+	state=$1
+	code=$2
+	message=$3
+	tmp="$status_file.$$"
+	printf '%s|%s|%s|%s\n' "$(date +%s)" "$state" "$code" "$message" > "$tmp" && mv "$tmp" "$status_file"
+}
+
+enabled=$(uci -q get "eportal.$section.enabled")
+if [ "$enabled" != '1' ]; then
+	write_status disabled '' '未启用'
+	exit 0
+fi
+
+interface=$(uci -q get "eportal.$section.interface")
+username=$(uci -q get "eportal.$section.username")
+password=$(uci -q get "eportal.$section.password")
+service=$(uci -q get "eportal.$section.service")
+route_table=$(uci -q get "eportal.$section.route_table")
+
+if [ -z "$interface" ] || [ -z "$username" ] || [ -z "$password" ]; then
+	write_status misconfigured '' '账号、密码或绑定设备为空'
+	exit 65
+fi
+
+check_url=$(uci -q get eportal.globals.check_url)
+[ -n "$check_url" ] || check_url='http://connectivitycheck.gstatic.com/generate_204'
+expected_code=$(uci -q get eportal.globals.expected_code)
+expected_code=$(uint_or_default "$expected_code" 204)
+detect_timeout=$(uint_or_default "$(uci -q get eportal.globals.detect_timeout)" 15)
+login_timeout=$(uint_or_default "$(uci -q get eportal.globals.login_timeout)" 20)
+verify_delay=$(uint_or_default "$(uci -q get eportal.globals.verify_delay)" 2)
+retry_count=$(uint_or_default "$(uci -q get eportal.globals.retry_count)" 1)
+rule_priority=$(uint_or_default "$(uci -q get eportal.globals.rule_priority)" 100)
+case "$expected_code" in
+	[1-5][0-9][0-9]) ;;
+	*) expected_code=204 ;;
+esac
+[ "$detect_timeout" -ge 1 ] 2>/dev/null || detect_timeout=15
+[ "$login_timeout" -ge 1 ] 2>/dev/null || login_timeout=20
+[ "$verify_delay" -ge 1 ] 2>/dev/null || verify_delay=2
+[ "$retry_count" -ge 1 ] 2>/dev/null || retry_count=1
+[ "$rule_priority" -ge 1 ] 2>/dev/null || rule_priority=100
+login_path=$(uci -q get eportal.globals.login_path)
+[ -n "$login_path" ] || login_path='InterFace.do?method=login'
+
+lock="/tmp/eportal-login-$section.lock"
+mkdir "$lock" 2>/dev/null || exit 0
+trap 'rmdir "$lock"' EXIT INT TERM
+
+table=$route_table
+if [ -z "$table" ]; then
+	table=$(ip -4 rule show | awk -v dev="$interface" '$0 ~ ("iif " dev " lookup") { print $NF; exit }')
+fi
+if [ -n "$table" ] && ! ip -4 rule show | grep -F "oif $interface lookup $table" >/dev/null; then
+	ip -4 rule add pref "$rule_priority" oif "$interface" lookup "$table"
+	ip -4 route flush cache
+fi
+
+online() {
+	http_code=$(curl --interface "$interface" -sS --max-time "$detect_timeout" -o /dev/null -w '%{http_code}' "$check_url" 2>/dev/null) || http_code=000
+	[ "$http_code" = "$expected_code" ]
+}
+
+if online; then
+	write_status online "$http_code" '已联网'
+	exit 0
+fi
+
+body=$(curl --interface "$interface" -sS --max-time "$detect_timeout" "$check_url") || {
+	write_status error 000 'Portal 探测失败'
+	logger -t eportal-login "$section: portal detection failed"
+	exit 1
+}
+
+portal=$(printf '%s' "$body" | extract_portal_url)
+if [ -z "$portal" ]; then
+	write_status error "$http_code" '未发现 Portal 地址'
+	logger -t eportal-login "$section: portal URL missing"
+	exit 1
+fi
+
+query=$(portal_query "$portal")
+login_path=${login_path#/}
+login_url="${portal%%index.jsp*}$login_path"
+data="userId=$(urlencode_twice "$username")"
+data="$data&password=$(urlencode_twice "$password")"
+data="$data&service=$(urlencode_twice "$service")"
+data="$data&queryString=$(urlencode_twice "$query")"
+data="$data&operatorPwd=&operatorUserId=&validcode=&passwordEncrypt=false"
+
+attempt=1
+login_ok=0
+while [ "$attempt" -le "$retry_count" ]; do
+	response=$(curl --interface "$interface" -sS --max-time "$login_timeout" \
+		-H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
+		--data-binary "$data" "$login_url") || response=''
+
+	case "$response" in
+		*'"result":"success"'*|*'"result": "success"'*) login_ok=1; break ;;
+	esac
+	attempt=$((attempt + 1))
+	[ "$attempt" -le "$retry_count" ] && sleep 2
+done
+
+if [ "$login_ok" != '1' ]; then
+	write_status rejected '' 'Portal 拒绝登录'
+	logger -t eportal-login "$section: login rejected"
+	exit 1
+fi
+
+sleep "$verify_delay"
+if ! online; then
+	write_status error "$http_code" '登录后仍未联网'
+	logger -t eportal-login "$section: login did not open network"
+	exit 1
+fi
+
+write_status online "$http_code" '认证成功'
+logger -t eportal-login "$section: online"
