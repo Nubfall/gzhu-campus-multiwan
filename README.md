@@ -421,13 +421,13 @@ reboot
 
 ## 10. 安装 LuCI 插件
 
-插件适用于 ImmortalWrt/OpenWrt 23.05 系列。仓库中的 [`luci-app-gzhu-eportal_0.1.0_all.ipk`](dist/luci-app-gzhu-eportal_0.1.0_all.ipk) 已使用 ImmortalWrt 23.05.4 `ramips/mt7621` SDK 完成真实构建，包架构为 `all`。
+插件适用于 ImmortalWrt/OpenWrt 23.05 系列。仓库中的 [`luci-app-gzhu-eportal_0.1.3_all.ipk`](dist/luci-app-gzhu-eportal_0.1.3_all.ipk) 已使用 ImmortalWrt 23.05.4 `ramips/mt7621` SDK 完成真实构建，包架构为 `all`。
 
 电脑执行上传，随后在路由器安装：
 
 ```sh
-scp -O dist/luci-app-gzhu-eportal_0.1.0_all.ipk root@192.168.1.1:/tmp/
-ssh root@192.168.1.1 'opkg update; opkg install /tmp/luci-app-gzhu-eportal_0.1.0_all.ipk; /etc/init.d/gzhu-eportal enable; /etc/init.d/gzhu-eportal start'
+scp -O dist/luci-app-gzhu-eportal_0.1.3_all.ipk root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 'opkg update; opkg install /tmp/luci-app-gzhu-eportal_0.1.3_all.ipk; /etc/init.d/gzhu-eportal enable; /etc/init.d/gzhu-eportal start'
 ```
 
 安装后打开“网络 -> 广州大学校园网认证”。账号、密码、验证网址和端口绑定都可以在页面中修改；“立即认证全部线路”和“查看日志”用于现场排查。mwan3 的成员、策略、权重和跟踪参数仍在“网络 -> MultiWAN 管理器”中调整。

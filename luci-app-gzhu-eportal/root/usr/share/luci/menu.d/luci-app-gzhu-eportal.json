@@ -4,7 +4,7 @@
 		"order": 75,
 		"action": {
 			"type": "view",
-			"path": "gzhu-eportal/settings"
+			"path": "gzhu-eportal/settings-013a"
 		},
 		"depends": {
 			"acl": [ "luci-app-gzhu-eportal" ]

@@ -61,58 +61,58 @@ function renderStatus(data) {
 	return table;
 }
 
+function refreshStatus() {
+	return fs.exec('/usr/bin/eportal-status').then(function(result) {
+		statusData = parseStatus(result);
+		var node = document.getElementById('gzhu-eportal-status');
+		if (node)
+			node.replaceChildren(renderStatus(statusData));
+	});
+}
+
+function showLogs() {
+	return fs.exec('/sbin/logread', [ '-e', 'eportal-login' ]).then(function(result) {
+		ui.showModal(_('认证日志'), [
+			E('pre', { 'style': 'max-height: 60vh; overflow: auto; white-space: pre-wrap' }, [ result.stdout || _('暂无日志') ]),
+			E('div', { 'class': 'right' }, [
+				E('button', { 'class': 'btn', 'click': ui.hideModal }, [ _('关闭') ])
+			])
+		]);
+	}).catch(function(error) {
+		ui.addNotification(null, E('p', [ error.message ]));
+	});
+}
+
+function runAll() {
+	ui.showModal(_('正在认证'), [ E('p', { 'class': 'spinning' }, [ _('正在检查所有启用线路，请稍候…') ]) ]);
+	return fs.exec('/usr/bin/eportal-watchdog', [ '--once' ]).then(function(result) {
+		if (result.code)
+			ui.addNotification(null, E('p', [ _('部分线路认证失败，请查看状态和日志。') ]), 'warning');
+	}).catch(function(error) {
+		ui.addNotification(null, E('p', [ error.message ]));
+	}).finally(function() {
+		ui.hideModal();
+		return refreshStatus();
+	});
+}
+
+function runAccount(section) {
+	return fs.exec('/usr/bin/eportal-login', [ section ]).then(function(result) {
+		if (result.code)
+			ui.addNotification(null, E('p', [ _('认证失败，请查看状态和日志。') ]), 'warning');
+		else
+			ui.addNotification(null, E('p', [ _('认证检查已完成。') ]));
+	}).catch(function(error) {
+		ui.addNotification(null, E('p', [ error.message ]));
+	}).finally(refreshStatus);
+}
+
 return view.extend({
 	load: function() {
 		return fs.exec('/usr/bin/eportal-status').then(function(result) {
 			statusData = parseStatus(result);
 			return uci.load('eportal');
 		});
-	},
-
-	refreshStatus: function() {
-		return fs.exec('/usr/bin/eportal-status').then(function(result) {
-			statusData = parseStatus(result);
-			var node = document.getElementById('gzhu-eportal-status');
-			if (node)
-				node.replaceChildren(renderStatus(statusData));
-		});
-	},
-
-	showLogs: function() {
-		return fs.exec('/sbin/logread', [ '-e', 'eportal-login' ]).then(function(result) {
-			ui.showModal(_('认证日志'), [
-				E('pre', { 'style': 'max-height: 60vh; overflow: auto; white-space: pre-wrap' }, [ result.stdout || _('暂无日志') ]),
-				E('div', { 'class': 'right' }, [
-					E('button', { 'class': 'btn', 'click': ui.hideModal }, [ _('关闭') ])
-				])
-			]);
-		}).catch(function(error) {
-			ui.addNotification(null, E('p', [ error.message ]));
-		});
-	},
-
-	runAll: function() {
-		ui.showModal(_('正在认证'), [ E('p', { 'class': 'spinning' }, [ _('正在检查所有启用线路，请稍候…') ]) ]);
-		return fs.exec('/usr/bin/eportal-watchdog', [ '--once' ]).then(function(result) {
-			if (result.code)
-				ui.addNotification(null, E('p', [ _('部分线路认证失败，请查看状态和日志。') ]), 'warning');
-		}).catch(function(error) {
-			ui.addNotification(null, E('p', [ error.message ]));
-		}).finally(L.bind(function() {
-			ui.hideModal();
-			return this.refreshStatus();
-		}, this));
-	},
-
-	runAccount: function(section) {
-		return fs.exec('/usr/bin/eportal-login', [ section ]).then(function(result) {
-			if (result.code)
-				ui.addNotification(null, E('p', [ _('认证失败，请查看状态和日志。') ]), 'warning');
-			else
-				ui.addNotification(null, E('p', [ _('认证检查已完成。') ]));
-		}).catch(function(error) {
-			ui.addNotification(null, E('p', [ error.message ]));
-		}).finally(L.bind(this.refreshStatus, this));
 	},
 
 	render: function() {
@@ -209,22 +209,22 @@ return view.extend({
 		o.inputstyle = 'apply';
 		o.textvalue = function() { return _('立即认证'); };
 		o.readonly = readonly;
-		o.onclick = L.bind(function(section) { return this.runAccount(section); }, this);
+		o.onclick = runAccount;
 
 		return Promise.resolve(m.render()).then(function(map) {
 			var status = E('div', { 'class': 'cbi-section' }, [
 				E('div', { 'class': 'cbi-section-descr' }, [ _('状态由后台认证服务定期更新；mwan3 的权重和策略请在 MultiWAN 管理器中调整。') ]),
 				E('div', { 'class': 'left' }, [
-					E('button', { 'class': 'btn cbi-button-action', 'click': L.bind(this.runAll, this), 'disabled': readonly }, [ _('立即认证全部线路') ]),
+					E('button', { 'class': 'btn cbi-button-action', 'click': runAll, 'disabled': readonly || null }, [ _('立即认证全部线路') ]),
 					' ',
-					E('button', { 'class': 'btn', 'click': L.bind(this.showLogs, this) }, [ _('查看日志') ])
+					E('button', { 'class': 'btn', 'click': showLogs }, [ _('查看日志') ])
 				]),
 				E('div', { 'id': 'gzhu-eportal-status', 'style': 'margin-top: 1em' }, [ renderStatus(statusData) ])
 			]);
 
-			poll.add(L.bind(this.refreshStatus, this), 15);
+			poll.add(refreshStatus, 15);
 			return E([], [ status, map ]);
-		}, this);
+		});
 	},
 
 	handleSaveApply: function(ev, mode) {

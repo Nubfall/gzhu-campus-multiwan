@@ -3,7 +3,7 @@ include $(TOPDIR)/rules.mk
 LUCI_TITLE:=LuCI support for Guangzhou University EPortal
 LUCI_DEPENDS:=+curl +lua +mwan3
 LUCI_PKGARCH:=all
-PKG_VERSION:=0.1.0
+PKG_VERSION:=0.1.3
 PKG_RELEASE:=1
 PKG_LICENSE:=MIT
 
