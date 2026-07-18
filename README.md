@@ -430,7 +430,7 @@ scp -O dist/luci-app-gzhu-eportal_0.1.3_all.ipk root@192.168.1.1:/tmp/
 ssh root@192.168.1.1 'opkg update; opkg install /tmp/luci-app-gzhu-eportal_0.1.3_all.ipk; /etc/init.d/gzhu-eportal enable; /etc/init.d/gzhu-eportal start'
 ```
 
-安装后打开“网络 -> 广州大学校园网认证”。账号、密码、验证网址和端口绑定都可以在页面中修改；“立即认证全部线路”和“查看日志”用于现场排查。mwan3 的成员、策略、权重和跟踪参数仍在“网络 -> MultiWAN 管理器”中调整。
+安装后打开“网络 -> 广州大学校园网认证”。账号、密码、验证网址和端口绑定都可以在页面中修改；“检查并认证全部线路”和“查看日志”用于现场排查。mwan3 的成员、策略、权重和跟踪参数仍在“网络 -> MultiWAN 管理器”中调整。
 
 插件页面可调整：每条线路的启用状态、名称、实际出站设备、账号、密码、Portal 服务字段和路由表；全局的验证网址、成功状态码、检查周期、探测/登录超时、登录重试次数、登录接口路径和出站规则优先级。动态的 `wlanuserip`、`mac`、`nasip`、`queryString` 仍由脚本自动发现，不应手工固定。
 

@@ -207,7 +207,7 @@ return view.extend({
 
 		o = s.option(form.Button, '_login', _('操作'));
 		o.inputstyle = 'apply';
-		o.textvalue = function() { return _('立即认证'); };
+		o.textvalue = function() { return _('检查并认证'); };
 		o.readonly = readonly;
 		o.onclick = runAccount;
 
@@ -215,7 +215,7 @@ return view.extend({
 			var status = E('div', { 'class': 'cbi-section' }, [
 				E('div', { 'class': 'cbi-section-descr' }, [ _('状态由后台认证服务定期更新；mwan3 的权重和策略请在 MultiWAN 管理器中调整。') ]),
 				E('div', { 'class': 'left' }, [
-					E('button', { 'class': 'btn cbi-button-action', 'click': runAll, 'disabled': readonly || null }, [ _('立即认证全部线路') ]),
+					E('button', { 'class': 'btn cbi-button-action', 'click': runAll, 'disabled': readonly || null }, [ _('检查并认证全部线路') ]),
 					' ',
 					E('button', { 'class': 'btn', 'click': showLogs }, [ _('查看日志') ])
 				]),
