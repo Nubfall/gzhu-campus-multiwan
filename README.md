@@ -2,7 +2,6 @@
 
 在 ImmortalWrt/OpenWrt 路由器上，将多个校园网有线接入口配置为独立 WAN，分别完成广州大学 EPortal 网页认证，再通过 mwan3 实现按连接负载均衡和链路级故障切换。
 
-
 ## 已验证环境
 
 - 路由器：Redmi Router AC2100
@@ -14,14 +13,14 @@
 
 其他 OpenWrt 设备也可以参考，但物理端口名称、LAN 网桥结构和性能上限可能不同。
 
-上述环境已经完成从端口拆分、双线认证、mwan3 分流到掉线重登的全流程验证。本文可以作为该环境的完整部署记录，但不对所有路由器作“零改动即可部署”的承诺。其他设备或固件至少需要核对端口名、LAN 网桥、防火墙后端和软件包名称；EPortal 的接口或加密方式变化时，认证脚本也需要同步调整。
+上述环境已经完成从端口拆分、多 WAN 认证、mwan3 分流到掉线重登的全流程验证。本文可以作为该环境的完整部署记录，但不对所有路由器作“零改动即可部署”的承诺。其他设备或固件至少需要核对端口名、LAN 网桥、防火墙后端和软件包名称；EPortal 的接口或加密方式变化时，认证脚本也需要同步调整。
 
 ## 仓库内容
 
 - [`luci-app-gzhu-eportal/`](luci-app-gzhu-eportal/)：可安装的 LuCI 插件，包含认证脚本、后台服务和图形配置页。
 - [`luci-app-gzhu-eportal/root/usr/bin/eportal-login`](luci-app-gzhu-eportal/root/usr/bin/eportal-login)：按指定 WAN 检测联网状态、发现 Portal 并提交认证。
-- [`luci-app-gzhu-eportal/root/etc/config/eportal`](luci-app-gzhu-eportal/root/etc/config/eportal)：双 WAN 账号配置模板。
-- [`config/mwan3.example`](config/mwan3.example)：双线等权负载均衡及故障切换模板。
+- [`luci-app-gzhu-eportal/root/etc/config/eportal`](luci-app-gzhu-eportal/root/etc/config/eportal)：多 WAN 账号配置模板。
+- [`config/mwan3.example`](config/mwan3.example)：多 WAN 等权负载均衡及故障切换模板。
 
 ## 工作原理
 
@@ -55,12 +54,12 @@ InterFace.do?method=login
 
 你需要准备：
 
-- 两个可独立触发广州大学 EPortal 登录页的校园网有线接入口。
-- 一台具有两个可用上联端口的 ImmortalWrt/OpenWrt 路由器。
+- 多个可独立触发广州大学 EPortal 登录页的校园网有线接入口。
+- 一台具有多个可用上联端口的 ImmortalWrt/OpenWrt 路由器。
 - 路由器的 root SSH 权限，以及一台安装了 Git、SSH 和 SCP 的电脑。
-- 两个允许同时在线的账号，或一个经实测允许建立两个会话的账号。
+- 多个允许同时在线的账号，或一个经实测允许建立多个会话的账号。
 
-部署前建议把两条校园网线分别接到电脑或路由器原 WAN 口，访问一个普通 HTTP 页面，确认两条线路都能独立跳转到广州大学 EPortal。若某一条线路本身不能触发认证，先解决接入侧问题，不要继续配置 mwan3。
+部署前建议把校园网线分别接到电脑或路由器上对应的 WAN 口，访问一个普通 HTTP 页面，确认各条线路都能独立跳转到广州大学 EPortal。若某一条线路本身不能触发认证，先解决接入侧问题，不要继续配置 mwan3。
 
 先在电脑上克隆仓库。后文标注“电脑执行”的命令均在这个仓库目录中运行；标注“路由器执行”的命令均在 SSH 会话中运行。
 
@@ -143,7 +142,7 @@ uci commit firewall
 /etc/init.d/firewall restart
 ```
 
-确认两条线都获得不同的 DHCP 地址：
+确认各条线路都获得对应的 DHCP 地址：
 
 ```sh
 ubus call network.interface.wan status
@@ -248,7 +247,7 @@ ubus call network.interface.wan2 status | jsonfilter -e '@.l3_device'
 - 原 WAN：通常是 `wan`
 - 第二 WAN：本例是 `lan1`
 
-如果学校允许同一账号多会话，两个节可以填写同一账号；否则填写两个账号。
+如果学校允许同一账号多会话，多个认证节可以填写同一账号；否则为不同线路填写不同账号。
 
 路由器执行，手动测试：
 
@@ -284,9 +283,9 @@ printf '%s\n' \
 /etc/init.d/cron restart
 ```
 
-两条任务彼此独立；即使一条认证失败，另一条仍会继续检查。脚本带有按接口区分的运行锁，前一次检查尚未结束时不会在同一接口重复运行。
+各条任务彼此独立；即使一条认证失败，其他线路仍会继续检查。脚本带有按接口区分的运行锁，前一次检查尚未结束时不会在同一接口重复运行。
 
-## 6. 验证双线认证
+## 6. 验证多 WAN 认证
 
 路由器执行，分别绑定实际出站设备检查：
 
@@ -295,7 +294,9 @@ curl --interface wan  -sS -o /dev/null -w '%{http_code}\n' http://connectivitych
 curl --interface lan1 -sS -o /dev/null -w '%{http_code}\n' http://connectivitycheck.gstatic.com/generate_204
 ```
 
-两条都应返回：
+上面的命令以 `wan` 和 `lan1` 为示例；增加线路时，对每个实际出站设备重复检查。
+
+所有线路都应返回：
 
 ```text
 204
@@ -307,9 +308,9 @@ curl --interface lan1 -sS -o /dev/null -w '%{http_code}\n' http://connectivitych
 iptables -t mangle -L mwan3_policy_balanced -v -n --line-numbers
 ```
 
-两个 MARK 规则的计数都持续增加，说明两条线路都在承载新连接。
+各个 MARK 规则的计数都持续增加，说明各条线路都在承载新连接。
 
-至此满足以下三项才算部署完成：两次绑定设备的 HTTP 检查都返回 `204`；`mwan3 status` 显示 `wan` 和 `wan2` 在线；多连接下载或测速时两个策略计数都增长。只满足 ping 或 mwan3 在线不足以证明 Portal 认证成功。
+至此满足以下三项才算部署完成：每个绑定设备的 HTTP 检查都返回 `204`；`mwan3 status` 显示已配置的 WAN 线路在线；多连接下载或测速时各策略计数都增长。只满足 ping 或 mwan3 在线不足以证明 Portal 认证成功。
 
 ## 7. 波动优化
 
@@ -325,7 +326,7 @@ option sticky '1'
 
 本仓库的 `mwan3.example` 已移除该项。每个 TCP 连接仍由 conntrack 固定在创建时的出口，不会在连接中途切线。
 
-两条 WAN 可能具有不同公网 IP。去掉粘滞后，少数严格绑定来源 IP 的网站可能要求重新登录。遇到这类站点，应为其建立 `wan_only` 规则，而不是重新开启全局粘滞。
+多条 WAN 可能具有不同公网 IP。去掉粘滞后，少数严格绑定来源 IP 的网站可能要求重新登录。遇到这类站点，应为其建立 `wan_only` 规则，而不是重新开启全局粘滞。
 
 ### 流量卸载
 
@@ -362,7 +363,7 @@ mwan3 对新连接按概率分配，不是严格轮流：
 
 ### WAN2 有 IP，但 curl 无法绑定出口
 
-两个校园网 WAN 可能处于同一网段并使用同一个网关。mwan3 建表后，本机发出的绑定接口请求还需要对应的 `oif` 规则。认证脚本会从 mwan3 的 `iif` 规则自动找到路由表，并补充优先级 100 的 `oif` 规则。
+多个校园网 WAN 可能处于同一网段并使用同一个网关。mwan3 建表后，本机发出的绑定接口请求还需要对应的 `oif` 规则。认证脚本会从 mwan3 的 `iif` 规则自动找到路由表，并补充优先级 100 的 `oif` 规则。
 
 检查：
 
